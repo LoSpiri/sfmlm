@@ -7,6 +7,7 @@ interrupted sweeps resume.
 """
 import argparse
 import json
+import os
 import time
 from pathlib import Path
 
@@ -114,7 +115,9 @@ def run_model(args, model_id, modes, Ks):
                 f' sigma={s["sigma"]:.4f} row_active={s["row_active"]:.3f}'
                 f' clip={s["clip_rate"]:.2e}')
       print(f'{msg} ({run["wall_s"]:.0f}s)', flush=True)
-    out_path.write_text(json.dumps(result, indent=1))
+    tmp = out_path.with_name(out_path.name + '.tmp')
+    tmp.write_text(json.dumps(result, indent=1))
+    os.replace(tmp, out_path)
     print(f'[{model_id}] saved {out_path}', flush=True)
   injector.detach()
   del model

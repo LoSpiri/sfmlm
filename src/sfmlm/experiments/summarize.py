@@ -1,6 +1,7 @@
 """Markdown table of N-SFLM vs N-MDLM results produced by run_compare."""
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from sfmlm.config import Config
@@ -53,8 +54,12 @@ def main(argv=None):
   p.add_argument('--pattern', default='*.json')
   p.add_argument('--out', type=Path, default=None)
   args = p.parse_args(argv)
-  results = [json.loads(f.read_text())
-             for f in sorted(args.results_dir.glob(args.pattern))]
+  results = []
+  for f in sorted(args.results_dir.glob(args.pattern)):
+    try:
+      results.append(json.loads(f.read_text()))
+    except (json.JSONDecodeError, OSError) as e:
+      print(f'[skip] {f.name}: {e}', file=sys.stderr)
   if not results:
     raise SystemExit(f'no results matching {args.pattern} in '
                      f'{args.results_dir}')

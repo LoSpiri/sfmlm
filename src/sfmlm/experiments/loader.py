@@ -41,7 +41,11 @@ def build_model(name, *, steps, length, temperature, batch):
 
 
 def load_gsm8k(cfg, tokenizer, subset):
-  enter_sflm()
+  root = enter_sflm()
+  # Pin data/cache to absolute paths under the s-flm checkout so loading does
+  # not depend on the process cwd (s-flm's config uses cwd-relative paths).
+  cfg.data.data_path = str(root / 'data' / 'gsm8k_test.json')
+  cfg.data.cache_dir = str(root / 'data_cache')
   import dataloader
   dataset = dataloader.get_dataset(cfg, tokenizer, mode='valid')
   n = min(subset, len(dataset))

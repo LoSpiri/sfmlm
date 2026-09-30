@@ -50,20 +50,29 @@ def decode(digits):
   return (digits * weights).sum(dim=-1)
 
 
-def _popcount(mask, n_bits):
-  count = torch.zeros_like(mask)
-  for i in range(n_bits):
-    count = count + ((mask >> i) & 1)
-  return count
+def _popcount(mask):
+  """Elementwise popcount of a non-negative int32 tensor.
+
+  Classic SWAR bit-hack, fully vectorized (no per-bit Python loop and no
+  cross-device lookup table). Equivalent to the previous loop over `n_bits`
+  for the clamped magnitudes used here (<= 2 * (2**T_MAX - 1)).
+  """
+  x = mask
+  x = x - ((x >> 1) & 0x55555555)
+  x = (x & 0x33333333) + ((x >> 2) & 0x33333333)
+  x = (x + (x >> 4)) & 0x0F0F0F0F
+  x = x + (x >> 8)
+  x = x + (x >> 16)
+  return x & 0x3F
 
 
 def binary_popcount(q, n_bits=POPCOUNT_BITS):
   """Elementwise number of spikes of the sign-magnitude binary code."""
-  return _popcount(q.to(torch.int32).abs(), n_bits)
+  return _popcount(q.to(torch.int32).abs())
 
 
 def naf_popcount(q, n_bits=POPCOUNT_BITS):
   """Elementwise number of spikes of the NAF code."""
   x = q.to(torch.int32).abs()
   xh = x >> 1
-  return _popcount(xh ^ (x + xh), n_bits + 1)
+  return _popcount(xh ^ (x + xh))

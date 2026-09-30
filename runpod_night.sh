@@ -95,6 +95,17 @@ for f in ["tinygsm/sfm/sphere_arch_truncated_adaptive_no_renorm.ckpt",
     print("ok", f, flush=True)
 PY
 
+echo "==> fetching GSM8K test data (data/gsm8k_test.json)"
+mkdir -p "${SFLM_ROOT}/data"
+python - <<PY || fail "gsm8k data fetch"
+import json, urllib.request
+url = "https://raw.githubusercontent.com/LoSpiri/thesis/main/data/gsm8k_test.json"
+dst = "${SFLM_ROOT}/data/gsm8k_test.json"
+urllib.request.urlretrieve(url, dst)
+json.load(open(dst))  # verify it parses (fails loudly if empty/corrupt)
+print("ok", dst, flush=True)
+PY
+
 echo "==> unit tests"
 (cd "$REPO" && python -m pytest -q) || fail "unit tests"
 
