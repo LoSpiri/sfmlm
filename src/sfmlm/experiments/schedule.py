@@ -29,6 +29,8 @@ PRIORITY_TIERS = (
 )
 JOB_TIMEOUT_BASE_S = 1800
 JOB_TIMEOUT_PER_STEP_S = 450
+# Consecutive failures usually mean a broken environment, not a bad job.
+MAX_CONSECUTIVE_FAILURES = 3
 
 
 def _jobs(models, subset):
@@ -64,8 +66,11 @@ def main(argv=None):
   out_dir = args.out_dir.resolve()
   out_dir.mkdir(parents=True, exist_ok=True)
   logfile = out_dir / 'schedule.log'
+  job_logs = out_dir / 'logs'
+  job_logs.mkdir(exist_ok=True)
   jobs = _jobs(args.models.split(','), args.subset)
   _log(f'=== {len(jobs)} jobs -> {out_dir} ===', logfile)
+  failures = 0
 
   for i, (model, mode, steps, K, tag, extra) in enumerate(jobs, 1):
     out = result_path(out_dir, model, mode, steps, args.subset, tag)
@@ -84,18 +89,26 @@ def main(argv=None):
       _log(f'{name} DRY {" ".join(cmd[1:])}', logfile)
       continue
     timeout = JOB_TIMEOUT_BASE_S + JOB_TIMEOUT_PER_STEP_S * steps
+    job_log = job_logs / f'{out.stem}.log'
     t0 = time.time()
+    ok = False
     try:
       r = subprocess.run(cmd, timeout=timeout, capture_output=True,
                          text=True)
-      tail = (r.stdout + r.stderr).strip().splitlines()[-4:]
+      output = r.stdout + r.stderr
+      job_log.write_text(output)
       ok = r.returncode == 0 and out.exists()
       _log(f'{name} {"OK" if ok else f"FAIL rc={r.returncode}"} '
-           f'({time.time() - t0:.0f}s)', logfile)
-      for line in tail:
+           f'({time.time() - t0:.0f}s) log: {job_log}', logfile)
+      for line in output.strip().splitlines()[-4:]:
         _log(f'    {line.strip()[:200]}', logfile)
-    except subprocess.TimeoutExpired:
-      _log(f'{name} TIMEOUT after {timeout}s', logfile)
+    except subprocess.TimeoutExpired as e:
+      job_log.write_text(str(e.stdout or '') + str(e.stderr or ''))
+      _log(f'{name} TIMEOUT after {timeout}s log: {job_log}', logfile)
+    failures = 0 if ok else failures + 1
+    if failures >= MAX_CONSECUTIVE_FAILURES:
+      _log(f'=== {failures} consecutive failures: aborting ===', logfile)
+      sys.exit(1)
     subprocess.run([sys.executable, '-m', 'sfmlm.experiments.summarize',
                     '--results-dir', str(out_dir),
                     '--out', str(out_dir / 'summary.md')],

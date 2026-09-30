@@ -33,6 +33,12 @@ if [ -z "${SFMLM_DETACHED:-}" ]; then
   exit 0
 fi
 
+# /workspace is geesefs (S3-backed FUSE): Hugging Face snapshot links end up
+# as 0-byte files there, so all caches stay on the container disk.
+export XDG_CACHE_HOME=/root/.cache
+export HF_HOME=/root/.cache/huggingface
+unset TRANSFORMERS_CACHE HF_HUB_CACHE
+
 export SFLM_ROOT="${SFLM_ROOT:-/root/s-flm}"
 MAX_HOURS="${MAX_HOURS:-10}"
 AUTOSTOP="${AUTOSTOP:-stop}"
@@ -113,9 +119,14 @@ echo "==> GPU check"
 python -c "import torch; assert torch.cuda.is_available(); print(torch.cuda.get_device_name(0))" \
   || fail "no CUDA device"
 
+echo "==> preflight (2 examples, 2 steps, both models)"
+python -m sfmlm.experiments.run_compare --models sfm,mdlm --modes nmdlm \
+  --subset 2 --batch 2 --steps 2 --K 2 --workers 1 \
+  --out-dir /root/preflight --overwrite || fail "preflight job"
+
 echo "==> sweep (prioritized, resume-safe)"
 python "$REPO/sfmlm-experiments/e1/run_night.py" --out-dir "$PERSIST_DIR" \
-  --workers "$WORKERS" --batch "$BATCH"
+  --workers "$WORKERS" --batch "$BATCH" || fail "sweep aborted"
 
 echo "==> [$(date)] DONE; summary: ${PERSIST_DIR}/summary.md"
 cat "${PERSIST_DIR}/summary.md" 2>/dev/null || true

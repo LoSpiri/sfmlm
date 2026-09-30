@@ -27,12 +27,25 @@ The script detaches itself; you can close the terminal. It clones s-flm into
 sphere-arch, MDLM), runs the unit tests and a CUDA check, then runs the
 prioritized sweep.
 
+Before the sweep, a preflight job (both models, 2 examples, 2 steps) runs the
+full path once; if it fails, the pod stops within minutes.
+
+### Caches and `/workspace`
+
+`/workspace` is a geesefs (S3-backed FUSE) volume. Hugging Face cache
+snapshot links end up there as 0-byte files, which broke every job with
+`JSONDecodeError: Expecting value: line 1 column 1 (char 0)` when loading the
+tokenizers. The script therefore keeps the Hugging Face and pip caches under
+`/root/.cache` (container disk); only results go to `/workspace`. The old
+corrupted cache can be removed once with `rm -rf /workspace/.cache/huggingface`.
+
 ## 3. Autostop
 
 The pod is stopped (GPU released, `/workspace` kept) when:
 
 - the sweep finishes,
 - any setup step fails (clone, pip, download, tests, no GPU),
+- 3 sweep jobs fail in a row (full per-job output in `logs/<job>.log`),
 - `MAX_HOURS` (default 10) have passed — watchdog, even if the sweep hangs.
 
 Overrides: `MAX_HOURS=8 bash runpod_night.sh`, `AUTOSTOP=terminate` (network
