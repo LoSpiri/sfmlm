@@ -19,22 +19,21 @@ from sfmlm.constants.neuromorphic import (
 from sfmlm.experiments.run_compare import result_path
 
 # (steps, K values, extra tag, extra args); float runs once per steps.
+# Trimmed to fit ~4-5 h on an RTX PRO 4000: NFE {8,16} x K {1,2,4}, both
+# models, all spiking modes + float. (Dropped: K=8, NFE=32, --include-head.)
 PRIORITY_TIERS = (
   (16, (2,), '', ()),
   (16, (1, 4), '', ()),
   (8, (2,), '', ()),
-  (16, (8,), '', ()),
   (8, (1, 4), '', ()),
-  (32, (2,), '', ()),
 )
-HEAD_ABLATION = (16, (2,), '_head', ('--include-head',))
 JOB_TIMEOUT_BASE_S = 1800
 JOB_TIMEOUT_PER_STEP_S = 450
 
 
 def _jobs(models, subset):
   jobs, seen_float = [], set()
-  for steps, Ks, extra_tag, extra in PRIORITY_TIERS + (HEAD_ABLATION,):
+  for steps, Ks, extra_tag, extra in PRIORITY_TIERS:
     for model in models:
       if (model, steps) not in seen_float and not extra:
         seen_float.add((model, steps))

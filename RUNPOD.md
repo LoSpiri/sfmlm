@@ -41,15 +41,16 @@ if neither `runpodctl` nor `RUNPOD_API_KEY` is available.
 
 ## 4. What runs
 
-56 jobs, one (model, mode, steps, K) each, in priority order so a partial
-night is still useful:
+40 jobs, one (model, mode, steps, K) each, in priority order so a partial
+night is still useful (~4-5 h on an RTX PRO 4000):
 
 1. S=16, K=2 — float + `nmdlm`, `delta_bitwise`, `delta_residual`, both models
 2. S=16, K=1 and K=4
 3. S=8, K=2
-4. S=16, K=8; S=8, K=1 and K=4
-5. S=32, K=2
-6. S=16, K=2 `nmdlm` with the LM head converted
+4. S=8, K=1 and K=4
+
+(Trimmed for speed: dropped K=8, S=32, and the `--include-head` ablation.)
+`MAX_HOURS` (default 10) backstops the run even if a job hangs.
 
 Finished jobs are skipped on re-run (`bash runpod_night.sh` again resumes).
 `schedule.log` has per-job status; `summary.md` is refreshed after every job.
